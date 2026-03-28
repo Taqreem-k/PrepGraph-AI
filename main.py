@@ -1,10 +1,11 @@
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from typing import TypedDict, Annotated, List, Optional
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, AIMessage, AnyMessage
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
 import operator
 
@@ -198,7 +199,60 @@ def node_re_router(state: AgentState):
         "monthly_milestones": updated_plan.model_dump_json()
     }
 
+def route_start(state: AgentState):
+
+    if not state.get("user_profile"):
+        return "new_setup"
+    
+    return{
+        "progress_update"
+    }
+
+def should_reroute(state: AgentState):
+    weak_areas = state.get("weak_areas", "")
+
+    if weak_areas:
+        return "needs_rerouting"
+    
+    return "on_track"
+
 
 # Defining Workflow
 workflow = StateGraph(AgentState)
+
+workflow.add_node("intake", node_intake_user)
+workflow.add_node("planner", node_syllabus_planner)
+workflow.add_node("gatherer", node_resource_gatherer)
+workflow.add_node("scheduler", node_dynamic_scheduler)
+workflow.add_node("evaluator", node_evaluate_progress)
+workflow.add_node("router", node_re_router)
+
+workflow.add_conditional_edges(
+    START,
+    route_start,
+    {
+        "new_setup": "intake",
+        "progress_update": "evaluator"
+    }
+)
+
+workflow.add_edge("intake","planner")
+workflow.add_edge("planner","gatherer")
+workflow.add_edge("gatherer","scheduler")
+
+workflow.add_conditional_edges(
+    "evaluator",
+    should_reroute,
+    {
+        "needs_rerouting": "router",
+        "on_track": "scheduler"
+    }
+)
+
+workflow.add_edge("router", "scheduler")
+workflow.add_edge("scheduler", END)
+
+memory = MemorySaver()
+
+app = workflow.compile(checkpointer=memory)
 
