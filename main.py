@@ -18,7 +18,7 @@ class AgentState(TypedDict):
     monthly_milestones: str
     study_resources: str
     current_schedule: str
-    mock_text_results: str
+    mock_test_results: str
     weak_areas: str
 
 
@@ -59,7 +59,7 @@ class WeeklySchedule(BaseModel):
 
 
 class EvaluationResult(BaseModel):
-    week_topic: List[DailyTask] = Field(description="Topics the user scored poorly on")
+    weak_topic: List[str] = Field(description="Topics the user scored poorly on")
     needs_reroute: bool = Field(description="True if the schedule needs a major adjustment, False if they are on track")
     feedback_summary: str = Field(description="A brief encouraging summary of their performance")
 
@@ -67,33 +67,51 @@ class EvaluationResult(BaseModel):
 
 # Defining Prompt Templates
 input_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are the intake strategist for a long-term competitive exam planner. "
+    "Your job is to extract the exact name of the exam the user wants to take and the timeframe they have to prepare."
+    "If the timeframe is not explicitly stated, make a logical guess based on standard prep times for that exam, or return null."),
+    ("human", "User Input: {user_text}")
 ])
 
 syllabus_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are an expert academic strategist specializing in massive, high-stakes exams."
+    "Your task is to take a raw, unstructured syllabus and break it down into a logical chronological month-by-month study plan."
+    "Crucial Rules: \n"
+    "1. Always schedule foundational prerequisites before advanced topic.\n"
+    "2. Group logically related topics together within the same month.\n"
+    "3. Ensure the final month includes dedicated time for full-length mock exams."),
+    ("human", "User Profile: {profile}\n\nRaw Syllabus:\n{syllabus}")
 ])
 
 resource_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are an educational resource librarian. Your job is to look at a student's upcoming study milestones and recommend the absolute best study materials."
+    "Provide specific, highly-rated textbook titles, exact YouTube search queries"
+    "(e.g., 'Laplace Transforms engineering mathematics full lecture' or 'Data Structures arraw practice'), and name specific platform for mock tests."),
+    ("human", "Current Milestones: \n{milestones}")
 ])
 
 scheduler_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are strict but realistic study schedule coordinator. Based on the user's monthly milestones and available resources, generate a highly specific 7-day weekly timetable."
+    "Rules:\n"
+    "1. Balance reading textbooks, watching lectures, and doing practice problems.\n"
+    "2. Do not overload the student; keep daily tasks focused on 1 or 2 core topics.\n"
+    "3. Assign at least one day for revision or a mock test."),
+    ("human", "User Profile: {profile}\n\nCurrent Milestones:\n{milestones\n\nStudy Resources:\n{resources}}")
 ])
 
 evaluator_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are an analytical academic tutor, Read the student's recent status report or mock test results and compare it against their current schedule."
+    "Your task is to objective identify exactly which specific topics they are struggling with."
+    "Provide a brief, encouraging summary, but clearly isolate the 'weak areas' that require immediate revision."
+    "If they are doing well, state that no rerouting is needed."),
+    ("human", "Current Active Schedule:\n{current_schedule}\n\nStudent's Progress Report:\n{user_report}")
 ])
 
 router_prompt = ChatPromptTemplate.from_messages([
-    ("system", ""),
-    ("human", "")
+    ("system", "You are an adaptive academic planner. The student has taken a mock test and identified specific weak areas that they are failing."
+    "Your task is to rewrite their upcoming monthly milestones. You must inject dedicated revision blocks for these weak areas into the upcoming month WITHOUT completely derailing their long-term timeline."
+    "Condense or shift future topics slightly to make room for this critical revision."),
+    ("human", "Identified Weak Areas:\n{weak_areas}\n\nCurrent Monthly Milestones:\n{current_milestones}")
 ])
 
 
@@ -177,7 +195,7 @@ def node_evaluate_progress(state: AgentState):
 
     return{
         "weak_areas": ", ".join(evaluation.weak_topics),
-        "mock_text_results": evaluation.model_dump_json()
+        "mock_test_results": evaluation.model_dump_json()
     }
 
 def node_re_router(state: AgentState):
