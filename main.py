@@ -96,7 +96,7 @@ scheduler_prompt = ChatPromptTemplate.from_messages([
     "1. Balance reading textbooks, watching lectures, and doing practice problems.\n"
     "2. Do not overload the student; keep daily tasks focused on 1 or 2 core topics.\n"
     "3. Assign at least one day for revision or a mock test."),
-    ("human", "User Profile: {profile}\n\nCurrent Milestones:\n{milestones\n\nStudy Resources:\n{resources}}")
+    ("human", "User Profile: {profile}\n\nCurrent Milestones:\n{milestones}\n\nStudy Resources:\n{resources}")
 ])
 
 evaluator_prompt = ChatPromptTemplate.from_messages([
