@@ -222,9 +222,8 @@ def route_start(state: AgentState):
     if not state.get("user_profile"):
         return "new_setup"
     
-    return{
-        "progress_update"
-    }
+    return "progress_update"
+    
 
 def should_reroute(state: AgentState):
     weak_areas = state.get("weak_areas", "")
