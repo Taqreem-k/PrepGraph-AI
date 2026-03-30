@@ -1,0 +1,20 @@
+# UI Framework
+streamlit>=1.32.0
+
+# LangChain & LangGraph Core Ecosystem
+langchain>=0.1.13
+langchain-core>=0.1.33
+langchain-community>=0.0.29
+langgraph>=0.0.30
+
+# LLM Provider (Google Gemini)
+langchain-google-genai>=1.0.1
+
+# Tools (Tavily Search API)
+tavily-python>=0.3.3
+
+# Data Validation & Schemas
+pydantic>=2.6.4
+
+# Environment Variable Management
+python-dotenv>=1.0.1
