@@ -77,9 +77,8 @@ if st.session_state.graph_state:
             for res in resources:
                 with st.container():
                     st.markdown(f"### {res['topic']}")
-
                     st.markdown(f" **Book:** {res['recommended_book']}")
-                    st.markdown(f" **Video Query: ** [{res['video_lecture_query']}](https://www.youtube.com/results?search_query={res['video_lecture_query'].replace(' ', '+')})")
+                    st.markdown(f"🌐 **Link: ** [{res['resource_link']}]({res['resource_link']})")
                     st.markdown(f" **Practice:** {res['practice_platform']}")
                     st.divider()
 

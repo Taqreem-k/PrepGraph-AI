@@ -3,11 +3,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from typing import TypedDict, Annotated, List, Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
-from langchain_core.messages import HumanMessage, AIMessage, AnyMessage
+from langchain_core.messages import AnyMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_community.tools.tavily_search import TavilySearchResults
 from pydantic import BaseModel, Field
-import operator
 
 
 # Defining GraphState
@@ -26,6 +26,9 @@ class AgentState(TypedDict):
 load_dotenv()
 llm = ChatGoogleGenerativeAI(model = "gemini-2.5-flash")
 
+# Initialize the web scraper
+web_search = TavilySearchResults(max_results=3)
+
 # Defining Pydantic Functions 
 
 class UserIntakeData(BaseModel):
@@ -43,7 +46,7 @@ class SyllabusPlan(BaseModel):
 class ResourceItem(BaseModel):
     topic: str = Field(description="The specific syllabus topic")
     recommended_book: str = Field(description="Title of the best textbook for this topic")
-    video_lecture_query: str = Field(description="Exact YouTube search query to find lectures")
+    resource_link: str = Field(description="An ACTUAL working URL from the web context (e.g., a GeeksforGeeks, NPTEL, or YouTube link)")
     practice_platform: str = Field(description="Where to find mock tests for this")
 
 class ResourcePlan(BaseModel):
@@ -59,7 +62,7 @@ class WeeklySchedule(BaseModel):
 
 
 class EvaluationResult(BaseModel):
-    weak_topic: List[str] = Field(description="Topics the user scored poorly on")
+    weak_topics: List[str] = Field(description="Topics the user scored poorly on")
     needs_reroute: bool = Field(description="True if the schedule needs a major adjustment, False if they are on track")
     feedback_summary: str = Field(description="A brief encouraging summary of their performance")
 
@@ -84,10 +87,12 @@ syllabus_prompt = ChatPromptTemplate.from_messages([
 ])
 
 resource_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an educational resource librarian. Your job is to look at a student's upcoming study milestones and recommend the absolute best study materials."
-    "Provide specific, highly-rated textbook titles, exact YouTube search queries"
-    "(e.g., 'Laplace Transforms engineering mathematics full lecture' or 'Data Structures arraw practice'), and name specific platform for mock tests."),
-    ("human", "Current Milestones: \n{milestones}")
+    ("system", "You are an educational resource librarian. You have access to real-time web search results.\n\n"
+    "Task 1: Recommend the absolute best, highly-rated textbooks for these specific topics based on your own knowledge (e.g., 'Kenneth Rosen' for Discrete Math).\n"
+    "Task 2: Suggest the best practice platforms based on your own knowledge.\n"
+    "Task 3: For the `resource_link`, extract the best matching URL from the Live Web Context. If the web context only has generic links, fallback to creating a highly specific YouTube search URL (e.g., 'https://www.youtube.com/results?search_query=Calculus+GATE+CS+full+lecture').\n\n"
+    "Map these resources directly to the student's upcoming milestones."),
+    ("human", "User Profile: {profile}\n\nCurrent Milestones:\n{milestones}\n\nLive Web Context:\n{web_context}")
 ])
 
 scheduler_prompt = ChatPromptTemplate.from_messages([
@@ -151,11 +156,26 @@ def node_syllabus_planner(state: AgentState):
 
 def node_resource_gatherer(state: AgentState):
     milestones = state.get("monthly_milestones","")
+    profile = state.get("user_profile","")
+
+    topic_hints = str(milestones)[:200]
+
+    search_query= f"Best specific NPTEL video lectures and study material for {profile}. Focus: {topic_hints}"
+
+    raw_search_results = web_search.invoke({"query": search_query})
+
+    web_context = "\n\n".join(
+        [f"Source: {res['url']}\nContent: {res['content']}" for res in raw_search_results]
+    )
 
     structured_llm = llm.with_structured_output(ResourcePlan)
-
     chain = resource_prompt | structured_llm
-    extracted_resources = chain.invoke({"milestones": milestones})
+
+    extracted_resources = chain.invoke({
+        "profile": profile,
+        "milestones": milestones,
+        "web_context": web_context
+        })
 
     return{
         "study_resources": extracted_resources.model_dump_json()
